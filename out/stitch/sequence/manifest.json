@@ -1,0 +1,94 @@
+{
+  "scene": "stitch",
+  "count": 9,
+  "width": 620,
+  "height": 460,
+  "sourceFrames": {
+    "A": "../stitch_A.png",
+    "B": "stitch_B.png"
+  },
+  "note": "Frames are engine renders at t=i/(count-1); frame 000 must equal frame A and 0N must equal frame B.",
+  "frames": [
+    {
+      "i": 0,
+      "t": 0,
+      "file": "frame_000.png",
+      "folds": 0,
+      "splitPixels": 3487,
+      "outOfFramePixels": 0,
+      "residualPixels": 2476
+    },
+    {
+      "i": 1,
+      "t": 0.125,
+      "file": "frame_001.png",
+      "folds": 0,
+      "splitPixels": 3493,
+      "outOfFramePixels": 0,
+      "residualPixels": 1869
+    },
+    {
+      "i": 2,
+      "t": 0.25,
+      "file": "frame_002.png",
+      "folds": 0,
+      "splitPixels": 3508,
+      "outOfFramePixels": 0,
+      "residualPixels": 1904
+    },
+    {
+      "i": 3,
+      "t": 0.375,
+      "file": "frame_003.png",
+      "folds": 0,
+      "splitPixels": 3499,
+      "outOfFramePixels": 0,
+      "residualPixels": 1929
+    },
+    {
+      "i": 4,
+      "t": 0.5,
+      "file": "frame_004.png",
+      "folds": 0,
+      "splitPixels": 3519,
+      "outOfFramePixels": 0,
+      "residualPixels": 1973
+    },
+    {
+      "i": 5,
+      "t": 0.625,
+      "file": "frame_005.png",
+      "folds": 0,
+      "splitPixels": 3515,
+      "outOfFramePixels": 0,
+      "residualPixels": 2072
+    },
+    {
+      "i": 6,
+      "t": 0.75,
+      "file": "frame_006.png",
+      "folds": 0,
+      "splitPixels": 3531,
+      "outOfFramePixels": 0,
+      "residualPixels": 2117
+    },
+    {
+      "i": 7,
+      "t": 0.875,
+      "file": "frame_007.png",
+      "folds": 0,
+      "splitPixels": 3530,
+      "outOfFramePixels": 0,
+      "residualPixels": 2231
+    },
+    {
+      "i": 8,
+      "t": 1,
+      "file": "frame_008.png",
+      "folds": 0,
+      "splitPixels": 3519,
+      "outOfFramePixels": 0,
+      "residualPixels": 3292
+    }
+  ]
+}

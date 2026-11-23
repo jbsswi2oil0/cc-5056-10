@@ -1,0 +1,18 @@
+{
+  "name": "bidir-shape-morph",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build-assets": "node src/assets/build.js",
+    "render": "node src/cli/render.js",
+    "eval": "node src/cli/evaluate.js",
+    "test": "node test/run.js",
+    "serve": "node web/server.js",
+    "ui-test": "node test/ui-check.mjs",
+    "test-all": "node test/run.js && node src/cli/evaluate.js hands && node src/cli/evaluate.js stitch"
+  },
+  "dependencies": {
+    "playwright": "^1.49.1"
+  }
+}

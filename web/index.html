@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dual-material shape-morph compositor</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>⇄</text></svg>">
+<link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+<header>
+  <h1>Dual-material shape-morph compositor</h1>
+  <div class="scene-picker">
+    <label>scene
+      <select id="sceneSelect">
+        <option value="hands">hands (occlusion)</option>
+        <option value="stitch">stitch (continuity)</option>
+      </select>
+    </label>
+    <label class="toggle"><input type="checkbox" id="showMesh"> deformation mesh</label>
+    <label class="toggle"><input type="checkbox" id="showCorr"> correspondence</label>
+    <label class="toggle"><input type="checkbox" id="showProv"> provenance</label>
+    <label class="toggle"><input type="checkbox" id="showFolds"> folds</label>
+  </div>
+</header>
+
+<main>
+  <section class="viewer">
+    <div class="stage" id="stage">
+      <canvas id="canvas"></canvas>
+      <canvas id="overlay"></canvas>
+      <div class="hint" id="hint">drag the slider to scrub across the midpoint</div>
+    </div>
+    <div class="transport">
+      <button id="playBtn">play</button>
+      <input type="range" id="phase" min="0" max="1" step="0.001" value="0">
+      <span class="tval" id="tval">t = 0.000</span>
+      <button id="exportFrame">export frame</button>
+      <button id="exportSeq">export sequence</button>
+    </div>
+    <div class="probe" id="probe">move the cursor over the image to read provenance</div>
+  </section>
+
+  <aside class="panel">
+    <section>
+      <h2>correspondence</h2>
+      <div id="objectList" class="object-list"></div>
+      <p class="muted">click a landmark row, then drag its dot on either frame to edit locally. Edits rebuild the mesh for that object only.</p>
+      <button id="resetCorr" class="ghost">reset to authored</button>
+    </section>
+    <section>
+      <h2>crossings</h2>
+      <div id="crossingList" class="crossing-list"></div>
+    </section>
+    <section>
+      <h2>diagnostics</h2>
+      <div id="diagnostics"></div>
+    </section>
+    <section>
+      <h2>endpoints</h2>
+      <div id="endpoints"></div>
+    </section>
+  </aside>
+</main>
+
+<script type="module" src="/web/app.js"></script>
+</body>
+</html>

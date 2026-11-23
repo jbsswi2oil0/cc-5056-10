@@ -1,0 +1,20 @@
+import { chromium } from 'playwright';
+import fs from 'node:fs';
+const browser = await chromium.launch({ executablePath: '/home/node/.cache/ms-playwright/chromium-1148/chrome-linux/chrome', args: ['--no-sandbox','--disable-gpu','--disable-dev-shm-usage'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 820 }, acceptDownloads: true });
+const errs = [];
+page.on('pageerror', e => errs.push(e.message));
+page.on('console', m => { if (m.type() === 'error' && !m.text().includes('404')) errs.push(m.text()); });
+await page.goto('http://localhost:8787/', { waitUntil: 'networkidle' });
+await page.waitForFunction(() => document.getElementById('canvas').width > 0);
+await page.waitForTimeout(300);
+const downloads = [];
+page.on('download', async (d) => {
+  const p = 'out/ui/' + d.suggestedFilename();
+  await d.saveAs(p);
+  downloads.push({ name: d.suggestedFilename(), size: fs.statSync(p).size });
+});
+await page.click('#exportSeq');
+await page.waitForTimeout(12000);
+console.log(JSON.stringify({ errs, downloads }, null, 2));
+await browser.close();

@@ -1,0 +1,25 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ executablePath: '/home/node/.cache/ms-playwright/chromium-1148/chrome-linux/chrome', args: ['--no-sandbox','--disable-gpu','--disable-dev-shm-usage'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
+await page.goto('http://localhost:8787/', { waitUntil: 'networkidle' });
+await page.waitForFunction(() => window.__editor && window.__editor.getState().engineReady);
+await page.check('#showCorr'); await page.check('#showFolds');
+await page.waitForTimeout(200);
+const dots = await page.evaluate(() => window.__editor.landmarkScreenPositions());
+const rect = await page.evaluate(() => { const r = window.__editor.canvasRect(); return { left: r.left, top: r.top }; });
+const target = dots.find(d => d.landmarkId === 'F_mark');
+const cx = rect.left + target.canvas[0], cy = rect.top + target.canvas[1];
+await page.mouse.move(cx, cy); await page.mouse.down();
+await page.mouse.move(cx + 70, cy + 20, { steps: 8 }); await page.mouse.up();
+await page.waitForTimeout(300);
+await page.evaluate(() => { const p=document.getElementById('phase'); p.value='0.5'; p.dispatchEvent(new Event('input',{bubbles:true})); });
+await page.waitForTimeout(400);
+await page.screenshot({ path: 'out/ui/09-fold-highlight.png' });
+const diag = await page.locator('#diagnostics').textContent();
+// reset
+await page.click('#resetCorr');
+await page.waitForTimeout(400);
+await page.screenshot({ path: 'out/ui/10-after-reset.png' });
+const diagReset = await page.locator('#diagnostics').textContent();
+console.log(JSON.stringify({ diag: diag.slice(0,200), foldsAfterReset: /folds0/.test(diagReset) || diagReset.includes('folds0'), diagReset: diagReset.slice(0,120) }, null, 2));
+await browser.close();
