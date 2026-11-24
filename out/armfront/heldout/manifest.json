@@ -1,0 +1,54 @@
+{
+  "project": "armfront",
+  "t": 0.63,
+  "file": "heldout_t0.630.png",
+  "authoredFrames": [
+    "flapfront_A.png",
+    "flapfront_B.png"
+  ],
+  "note": "No reference image exists for this phase; the frame is an engine solve from frames A and B only.",
+  "gapPixels": 0,
+  "folds": 0,
+  "cuffWinding": {
+    "available": true,
+    "reversed": false,
+    "signedArea": 2820.01,
+    "polygon": [
+      [
+        422.5,
+        213.17
+      ],
+      [
+        456.03,
+        231.05
+      ],
+      [
+        457.8,
+        266
+      ],
+      [
+        427.8,
+        283.99
+      ],
+      [
+        394.27,
+        266.12
+      ]
+    ]
+  },
+  "cuffOwnership": {
+    "available": true,
+    "t": 0.63,
+    "declaredFront": "arm",
+    "footprintComplete": true,
+    "counts": {
+      "arm": 2819,
+      "other": 0,
+      "background": 1,
+      "gap": 0
+    },
+    "otherOwners": {},
+    "occlusionLegit": true,
+    "missingCloth": []
+  }
+}

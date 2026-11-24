@@ -34,6 +34,73 @@ const ctx = canvas.getContext('2d');
 const octx = overlay.getContext('2d');
 
 // ---------------------------------------------------------------------------
+// Occlusion handoff control (garment projects)
+// ---------------------------------------------------------------------------
+function initHandoffControl() {
+  const row = el('handoffRow');
+  const slider = el('handoff');
+  const cr = state.crossings && state.crossings.find((c) => c.handoffDraggable);
+  if (!cr) { row.hidden = true; return; }
+  row.hidden = false;
+  // A switchT outside [0,1] means the order is pinned for the whole shot; map
+  // that onto 0/1 for the slider while remembering the original branch order.
+  const pinned = cr.switchT < 0 || cr.switchT > 1;
+  state.handoff = pinned ? null : cr.switchT;
+  state.pinnedOrder = pinned ? (cr.switchT < 0 ? cr.front : cr.switchTo) : null;
+  slider.value = pinned ? '0.5' : String(cr.switchT);
+  updateHandoffUI();
+}
+
+function updateHandoffUI() {
+  const cr = state.crossings.find((c) => c.handoffDraggable);
+  const slider = el('handoff');
+  if (state.handoff === null) {
+    el('handoffVal').textContent = `switchT = pinned (${state.pinnedOrder} always front)`;
+    el('handoffBranch').textContent = 'drag the handle to place a mid-shot handoff';
+  } else {
+    el('handoffVal').textContent = `switchT = ${Number(state.handoff).toFixed(3)}`;
+    const frontNow = state.t < state.handoff ? cr.front : cr.switchTo;
+    el('handoffBranch').textContent = `front at t=${state.t.toFixed(2)}: ${frontNow}`;
+  }
+  slider.value = state.handoff === null ? '0.5' : String(state.handoff);
+}
+
+function applyHandoff(switchT) {
+  const cr = state.crossings.find((c) => c.handoffDraggable);
+  state.handoff = switchT;
+  // First drag releases the pinned order: derive the two sides from the
+  // current branch and insert a real mid-shot switch.
+  const a = cr.objectA, b = cr.objectB;
+  if (switchT <= 0.5) { cr.front = a; cr.switchTo = b; }
+  else { cr.front = b; cr.switchTo = a; }
+  cr.switchT = switchT;
+  buildEngineForScene();
+  updateHandoffUI();
+  scheduleRender();
+}
+
+el('handoff').addEventListener('input', (e) => {
+  applyHandoff(parseFloat(e.target.value));
+});
+
+// Drag the on-image handle horizontally to move the handoff.
+function handoffHandleX() {
+  const eng = state.engine;
+  const cr = eng.occlusion && eng.occlusion[0];
+  if (!cr || !cr.handoffDraggable) return null;
+  const sw = state.handoff ?? 0.5;
+  return 40 + (eng.width - 80) * Math.max(0, Math.min(1, sw));
+}
+function hitHandoff(x, y) {
+  const eng = state.engine;
+  const cr = eng.occlusion && eng.occlusion[0];
+  if (!cr || !cr.handoffDraggable) return false;
+  const c = (state.meta.truth || {}).overlapCentroid || [eng.width / 2, eng.height / 2];
+  const hx = handoffHandleX();
+  return Math.abs(x - hx) < 12 && Math.abs(y - c[1]) < 64;
+}
+
+// ---------------------------------------------------------------------------
 // Scene loading
 // ---------------------------------------------------------------------------
 async function loadScene(name) {
@@ -44,6 +111,9 @@ async function loadScene(name) {
   });
   state.meta = meta;
   state.objects = JSON.parse(JSON.stringify(meta.objects));
+  state.crossings = JSON.parse(JSON.stringify(meta.crossings));
+  state.handoff = null;
+  initHandoffControl();
 
   // Decode every PNG the scene needs (frames, background, per-object layers).
   const files = new Set([meta.frames.A, meta.frames.B, meta.frames.background]);
@@ -67,7 +137,8 @@ function buildEngineForScene() {
     background: { A: meta.frames.background, B: meta.frames.background },
     layers: meta.layers,
     objects: state.objects,
-    crossings: meta.crossings,
+    crossings: state.crossings || meta.crossings,
+    protection: meta.protection || [],
   };
   const loadImage = (ref) => (typeof ref === 'string' ? state.images[ref] : ref);
   state.engine = buildEngine(scene, loadImage);
@@ -115,12 +186,91 @@ function drawOverlays(res) {
   octx.clearRect(0, 0, W, H);
   if (el('showProv').checked) drawProvenance(res);
   if (el('showFolds').checked) drawFolds(res);
+  if (el('showGaps').checked) drawGaps(res);
   if (el('showMesh').checked) drawMesh(res);
   if (el('showCorr').checked) drawCorrespondence(res);
+  if (el('showTracks').checked) drawCuffTracks(res);
+  drawHandoffHandle(res);
   if (state.drag && state.drag.pos) {
     octx.strokeStyle = '#ffffff'; octx.lineWidth = 2;
     octx.beginPath(); octx.arc(state.drag.pos[0], state.drag.pos[1], 7, 0, Math.PI * 2); octx.stroke();
   }
+}
+
+// Protection gaps: hatch the mask the engine produced when a protected surface
+// lost its legal correspondence. This is deliberately NOT filled with cloth.
+function drawGaps(res) {
+  const { width: W, height: H } = state.engine;
+  octx.save();
+  octx.strokeStyle = 'rgba(255,77,109,0.9)';
+  octx.lineWidth = 1;
+  for (let p = 0; p < W * H; p++) {
+    if (!res.gapMask[p]) continue;
+    const x = p % W, y = (p / W) | 0;
+    octx.beginPath();
+    octx.moveTo(x - 2, y + 2); octx.lineTo(x + 2, y - 2);
+    octx.stroke();
+  }
+  octx.restore();
+}
+
+// Three identity cuff vertices and their phase trails, so the author can check
+// the material points frame by frame.
+function drawCuffTracks(res) {
+  const eng = state.engine;
+  const arm = eng.scene.objects.find((o) => o.id === 'arm');
+  if (!arm) return;
+  const mesh = eng.meshes.arm;
+  const sol = res.solved.arm;
+  if (!mesh || !sol) return;
+  const colors = { cuff_top: '#7ee787', cuff_mid: '#ffd166', cuff_bot: '#79c0ff' };
+  for (const lm of arm.landmarks || []) {
+    if (!lm.id.startsWith('cuff_')) continue;
+    // trail across phases
+    octx.beginPath();
+    for (let k = 0; k <= 20; k++) {
+      const t = k / 20;
+      const s = solvePhase(mesh, t, {});
+      const p = mapPointThroughMesh(mesh, s.V, lm.a);
+      if (!p) continue;
+      if (k === 0) octx.moveTo(p[0], p[1]); else octx.lineTo(p[0], p[1]);
+    }
+    octx.strokeStyle = colors[lm.id] || '#fff';
+    octx.globalAlpha = 0.35; octx.lineWidth = 1; octx.stroke();
+    const now = mapPointThroughMesh(mesh, sol.V, lm.a);
+    if (now) {
+      octx.globalAlpha = 1;
+      octx.fillStyle = colors[lm.id] || '#fff';
+      octx.beginPath(); octx.arc(now[0], now[1], 3.2, 0, Math.PI * 2); octx.fill();
+      octx.strokeStyle = '#0b0d12'; octx.lineWidth = 1; octx.stroke();
+    }
+  }
+  octx.globalAlpha = 1;
+}
+
+// The draggable occlusion handoff: a vertical marker at switchT on the phase
+// axis, drawn on the overlap centroid so it reads on the image.
+function drawHandoffHandle(res) {
+  const eng = state.engine;
+  const cr = eng.occlusion && eng.occlusion[0];
+  if (!cr || !cr.handoffDraggable) return;
+  const truth = state.meta.truth || {};
+  const c = truth.overlapCentroid || [eng.width / 2, eng.height / 2];
+  const sw = state.handoff ?? cr.switchT;
+  // marker position: project switchT onto the horizontal line through c
+  const x = 40 + (eng.width - 80) * Math.max(0, Math.min(1, sw));
+  const y = c[1];
+  octx.save();
+  octx.strokeStyle = '#ffd166'; octx.lineWidth = 2; octx.setLineDash([6, 4]);
+  octx.beginPath(); octx.moveTo(x, y - 60); octx.lineTo(x, y + 60); octx.stroke();
+  octx.setLineDash([]);
+  octx.fillStyle = '#ffd166';
+  octx.beginPath(); octx.arc(x, y, 6, 0, Math.PI * 2); octx.fill();
+  octx.strokeStyle = '#0b0d12'; octx.lineWidth = 1.5; octx.stroke();
+  octx.fillStyle = '#ffd166';
+  octx.font = '12px monospace';
+  octx.fillText(`switchT ${Number(sw).toFixed(3)}`, x + 9, y - 62);
+  octx.restore();
 }
 
 function drawProvenance(res) {
@@ -263,6 +413,11 @@ stage.addEventListener('mousemove', (e) => {
   updateProbe(x, y);
   if (state.drag) {
     state.drag.pos = [x, y];
+    if (state.drag.kind === 'handoff') {
+      const sw = Math.max(0, Math.min(1, (x - 40) / (state.engine.width - 80)));
+      applyHandoff(sw);
+      return;
+    }
     const mode = state.drag.mode;
     const lm = state.drag.lm;
     if (mode === 'a') lm.a = [x, y]; else lm.b = [x, y];
@@ -270,16 +425,25 @@ stage.addEventListener('mousemove', (e) => {
     scheduleRender();
   } else if (el('showCorr').checked && isEditablePhase()) {
     const hit = hitTestLandmark(x, y);
-    stage.style.cursor = hit ? 'grab' : 'default';
+    stage.style.cursor = hit ? 'grab' : (hitHandoff(x, y) ? 'ew-resize' : 'default');
+  } else if (hitHandoff(x, y)) {
+    stage.style.cursor = 'ew-resize';
   }
 });
 stage.addEventListener('mouseleave', () => { stage.style.cursor = 'default'; });
 
 stage.addEventListener('mousedown', (e) => {
-  if (!state.engine || !el('showCorr').checked) return;
+  if (!state.engine) return;
+  const [x, y] = eventToImage(e);
+  // occlusion handoff handle takes priority
+  if (hitHandoff(x, y)) {
+    state.drag = { kind: 'handoff' };
+    stage.style.cursor = 'ew-resize';
+    return;
+  }
+  if (!el('showCorr').checked) return;
   const mode = editableMode();
   if (!mode) return;
-  const [x, y] = eventToImage(e);
   const hit = hitTestLandmark(x, y);
   if (!hit) return;
   state.activeLandmark = { objectId: hit.objectId, landmarkId: hit.lm.id };
@@ -290,8 +454,10 @@ stage.addEventListener('mousedown', (e) => {
 
 window.addEventListener('mouseup', () => {
   if (!state.drag) return;
+  const wasHandoff = state.drag.kind === 'handoff';
   state.drag = null;
   stage.style.cursor = 'default';
+  if (wasHandoff) return;
   if (state.dirty) { state.dirty = false; buildEngineForScene(); scheduleRender(); }
 });
 
@@ -398,6 +564,7 @@ function updateDiagnostics(res) {
   let html = '';
   html += line('phase t', state.t.toFixed(3));
   html += line('folds', `<span class="${foldColor}">${folds}</span>`);
+  html += line('protection gaps', `<span class="${d.gapPixels ? 'bad' : 'ok'}">${d.gapPixels}</span>`);
   html += line('split pixels', d.splitPixels);
   html += line('out-of-frame', d.outOfFramePixels, d.outOfFramePixels ? 'warn' : 'ok');
   html += line('residual pixels', d.residualPixels);
@@ -449,6 +616,7 @@ function line(k, v, cls) {
 el('phase').addEventListener('input', (e) => {
   state.t = parseFloat(e.target.value);
   el('tval').textContent = `t = ${state.t.toFixed(3)}`;
+  if (state.handoff !== null && state.engine?.occlusion?.[0]?.handoffDraggable) updateHandoffUI();
   updateEditHint();
   scheduleRender();
 });
@@ -487,10 +655,14 @@ el('showMesh').addEventListener('change', scheduleRender);
 el('showCorr').addEventListener('change', scheduleRender);
 el('showProv').addEventListener('change', scheduleRender);
 el('showFolds').addEventListener('change', scheduleRender);
+el('showGaps').addEventListener('change', scheduleRender);
+el('showTracks').addEventListener('change', scheduleRender);
 
 el('resetCorr').addEventListener('click', () => {
   state.objects = JSON.parse(JSON.stringify(state.meta.objects));
+  state.crossings = JSON.parse(JSON.stringify(state.meta.crossings));
   state.activeLandmark = null;
+  initHandoffControl();
   buildEngineForScene();
   scheduleRender();
   renderPanel();

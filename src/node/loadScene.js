@@ -24,8 +24,10 @@ export function loadSceneDir(dir) {
     layers: meta.layers,
     objects: meta.objects,
     crossings: meta.crossings,
+    protection: meta.protection || [],
   };
   const engine = buildEngine(scene, loadImage);
+  engine._loadImage = loadImage;
   return { engine, meta, loadImage, dir };
 }
 

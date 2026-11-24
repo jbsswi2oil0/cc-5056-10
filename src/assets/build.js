@@ -3,7 +3,9 @@
 // editor and the CLI both read from here, so there is a single source of truth.
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { buildHandSceneData, buildStitchSceneData } from './scenes.js';
+import { buildGarmentProjects, editableProjectSpec } from './garment-project.js';
 import { encodePNG } from '../node/png.js';
 
 const OUT = path.resolve(process.cwd(), 'out');
@@ -49,7 +51,32 @@ function emit(sceneData) {
   return { dir, objects: sceneData.objects.length, layers: Object.keys(sceneData.layers) };
 }
 
+// Garment projects carry extra authoring data (protection surfaces, action
+// tracks, editable master spec) and share one geometry rig across two branches.
+function emitGarment(sceneData) {
+  const base = emit(sceneData);
+  const meta = stripBuffers(sceneData);
+  // protection surfaces are engine input, not just truth documentation
+  meta.protection = [sceneData.truth.protection];
+  meta.branch = sceneData.branch;
+  const spec = editableProjectSpec();
+  const specJson = JSON.stringify(spec, null, 2);
+  meta.projectSpec = 'project-spec.json';
+  meta.specHash = createHash('sha256').update(specJson).digest('hex').slice(0, 16);
+  fs.writeFileSync(path.join(base.dir, 'scene.json'), JSON.stringify(meta, null, 2));
+  // The editable master: modify a contour / handoff here and re-run build to
+  // regenerate layers, vertex correspondence and keyframes identically.
+  fs.writeFileSync(path.join(base.dir, 'project-spec.json'), specJson);
+  return { ...base, branch: sceneData.branch, specHash: meta.specHash };
+}
+
 const hands = buildHandSceneData();
 const stitch = buildStitchSceneData();
-const report = { hands: emit(hands), stitch: emit(stitch) };
+const garment = buildGarmentProjects();
+const report = {
+  hands: emit(hands),
+  stitch: emit(stitch),
+  flapfront: emitGarment(garment.flapfront),
+  armfront: emitGarment(garment.armfront),
+};
 console.log(JSON.stringify(report, null, 2));

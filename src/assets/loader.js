@@ -35,6 +35,9 @@ export function makeEngineFromSceneData(sceneData, buffers) {
   const engineScene = {
     ...scene,
     background: { A: sceneData.background.A, B: sceneData.background.B },
+    protection: sceneData.protection || (sceneData.truth?.protection ? [sceneData.truth.protection] : []),
   };
-  return buildEngine(engineScene, loader);
+  const engine = buildEngine(engineScene, loader);
+  engine._loadImage = loader;
+  return engine;
 }

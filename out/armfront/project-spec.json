@@ -1,0 +1,279 @@
+{
+  "version": 1,
+  "generator": "garment-project",
+  "frame": {
+    "width": 640,
+    "height": 520
+  },
+  "master": {
+    "frame": {
+      "width": 640,
+      "height": 520
+    },
+    "backgroundSeed": 23,
+    "robe": {
+      "torso": [
+        [
+          214,
+          96
+        ],
+        [
+          426,
+          96
+        ],
+        [
+          452,
+          180
+        ],
+        [
+          462,
+          470
+        ],
+        [
+          178,
+          470
+        ],
+        [
+          188,
+          180
+        ]
+      ],
+      "flap": [
+        [
+          300,
+          104
+        ],
+        [
+          392,
+          122
+        ],
+        [
+          372,
+          332
+        ],
+        [
+          318,
+          402
+        ],
+        [
+          286,
+          332
+        ]
+      ],
+      "flapB": [
+        [
+          302,
+          106
+        ],
+        [
+          394,
+          124
+        ],
+        [
+          368,
+          330
+        ],
+        [
+          314,
+          398
+        ],
+        [
+          284,
+          330
+        ]
+      ],
+      "color": {
+        "base": [
+          38,
+          92,
+          104
+        ],
+        "shade": [
+          24,
+          62,
+          72
+        ]
+      },
+      "flapColor": {
+        "base": [
+          196,
+          138,
+          58
+        ],
+        "trim": [
+          232,
+          196,
+          120
+        ],
+        "shade": [
+          150,
+          98,
+          36
+        ]
+      }
+    },
+    "arm": {
+      "radius": 30,
+      "length": 232,
+      "pivotA": [
+        232,
+        146
+      ],
+      "pivotB": [
+        232,
+        146
+      ],
+      "angleADeg": 52,
+      "angleBDeg": 14,
+      "color": {
+        "base": [
+          158,
+          58,
+          52
+        ],
+        "shade": [
+          112,
+          36,
+          34
+        ]
+      },
+      "cuffColor": {
+        "base": [
+          232,
+          220,
+          196
+        ],
+        "shade": [
+          196,
+          182,
+          158
+        ]
+      },
+      "cuffDepth": 26
+    },
+    "cuffIds": [
+      {
+        "id": "cuff_top",
+        "local": [
+          232,
+          -18
+        ]
+      },
+      {
+        "id": "cuff_mid",
+        "local": [
+          240,
+          0
+        ]
+      },
+      {
+        "id": "cuff_bot",
+        "local": [
+          232,
+          18
+        ]
+      }
+    ],
+    "outlineSamples": 40,
+    "gridStep": 16,
+    "occlusion": {
+      "id": "lapel_arm_cross",
+      "objectA": "flap",
+      "objectB": "arm",
+      "handoff": {
+        "flapfront": {
+          "front": "flap",
+          "switchT": 2,
+          "switchTo": "flap"
+        },
+        "armfront": {
+          "front": "arm",
+          "switchT": -1,
+          "switchTo": "arm"
+        }
+      }
+    }
+  },
+  "projects": {
+    "flapfront": {
+      "id": "flapfront",
+      "branch": "flapfront",
+      "crossings": [
+        {
+          "id": "lapel_arm_cross",
+          "type": "occlusion",
+          "objectA": "flap",
+          "objectB": "arm",
+          "front": "flap",
+          "switchT": 2,
+          "switchTo": "flap",
+          "handoffDraggable": true,
+          "note": "lapel flap passes in front of the arm for the whole shot"
+        }
+      ],
+      "objects": [
+        {
+          "id": "torso",
+          "depthA": 0,
+          "depthB": 0,
+          "gridStep": 22,
+          "protected": false
+        },
+        {
+          "id": "flap",
+          "depthA": 1,
+          "depthB": 1,
+          "gridStep": 16,
+          "protected": false
+        },
+        {
+          "id": "arm",
+          "depthA": 2,
+          "depthB": 2,
+          "gridStep": 16,
+          "protected": true
+        }
+      ]
+    },
+    "armfront": {
+      "id": "armfront",
+      "branch": "armfront",
+      "crossings": [
+        {
+          "id": "lapel_arm_cross",
+          "type": "occlusion",
+          "objectA": "flap",
+          "objectB": "arm",
+          "front": "arm",
+          "switchT": -1,
+          "switchTo": "arm",
+          "handoffDraggable": true,
+          "note": "arm passes in front of the lapel flap for the whole shot"
+        }
+      ],
+      "objects": [
+        {
+          "id": "torso",
+          "depthA": 0,
+          "depthB": 0,
+          "gridStep": 22,
+          "protected": false
+        },
+        {
+          "id": "flap",
+          "depthA": 1,
+          "depthB": 1,
+          "gridStep": 16,
+          "protected": false
+        },
+        {
+          "id": "arm",
+          "depthA": 2,
+          "depthB": 2,
+          "gridStep": 16,
+          "protected": true
+        }
+      ]
+    }
+  }
+}

@@ -79,6 +79,10 @@ export function buildEngine(scene, loadImage) {
     mesh.depthA = obj.depthA ?? 0;
     mesh.depthB = obj.depthB ?? mesh.depthA;
     mesh.name = obj.name || obj.id;
+    if (obj.protected && obj.protectionId && scene.protection) {
+      const surf = scene.protection.find((s) => s.id === obj.protectionId);
+      if (surf) mesh.protectedFaces = markProtectedFaces(mesh, surf.polygonA);
+    }
     meshes[obj.id] = mesh;
   }
 
@@ -101,6 +105,29 @@ function pickCrossing(hits, ref) {
     if (d < bd) { bd = d; best = h; }
   }
   return best;
+}
+
+function pointInPolygon(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// A mesh face is protected when its frame-A centroid lies inside the protected
+// surface polygon. Those faces are still rasterised while legal; if the
+// correspondence folds them they become reported gaps instead of bad cloth.
+function markProtectedFaces(mesh, polygonA) {
+  const out = [];
+  for (let ti = 0; ti < mesh.T.length; ti++) {
+    const [i, j, k] = mesh.T[ti];
+    const cx = (mesh.points[i][0] + mesh.points[j][0] + mesh.points[k][0]) / 3;
+    const cy = (mesh.points[i][1] + mesh.points[j][1] + mesh.points[k][1]) / 3;
+    if (pointInPolygon(cx, cy, polygonA)) out.push(ti);
+  }
+  return out;
 }
 
 function sampleLayer(img, x, y) {
@@ -139,15 +166,21 @@ export function rasteriseObject(engine, objId, solved, t) {
   const srcB = new Float32Array(W * H * 2);
   const triOf = new Int32Array(W * H).fill(-1);
   const covered = new Uint8Array(W * H);
+  // Protection gaps: pixels a protected surface owns in the source but its
+  // correspondence has lost legality (folded/reversed face). They are left
+  // unpainted here and reported on this mask instead of inventing cloth.
+  const gap = new Uint8Array(W * H);
   const { V, VA, VB, T } = { V: solved.V, VA: mesh.VA, VB: mesh.VB, T: mesh.T };
   const foldedSet = new Set(solved.folded);
+  const protectedSet = new Set(mesh.protectedFaces || []);
 
   for (let ti = 0; ti < T.length; ti++) {
-    if (foldedSet.has(ti)) continue; // never rasterise negative-area triangles
     const [i, j, k] = T[ti];
     const ax = V[i * 2], ay = V[i * 2 + 1];
     const bx = V[j * 2], by = V[j * 2 + 1];
     const cx = V[k * 2], cy = V[k * 2 + 1];
+    const isFolded = foldedSet.has(ti);
+    if (isFolded && !protectedSet.has(ti)) continue; // never rasterise negative-area triangles
     let minx = Math.floor(Math.min(ax, bx, cx)), maxx = Math.ceil(Math.max(ax, bx, cx));
     let miny = Math.floor(Math.min(ay, by, cy)), maxy = Math.ceil(Math.max(ay, by, cy));
     minx = Math.max(0, minx); miny = Math.max(0, miny);
@@ -161,13 +194,14 @@ export function rasteriseObject(engine, objId, solved, t) {
         const w1 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / d;
         const w2 = 1 - w0 - w1;
         if (w0 < -1e-6 || w1 < -1e-6 || w2 < -1e-6) continue;
+        const p = (y * W + x);
+        if (isFolded && protectedSet.has(ti)) { gap[p] = 1; continue; }
         const aX = w0 * VA[i * 2] + w1 * VA[j * 2] + w2 * VA[k * 2];
         const aY = w0 * VA[i * 2 + 1] + w1 * VA[j * 2 + 1] + w2 * VA[k * 2 + 1];
         const bX = w0 * VB[i * 2] + w1 * VB[j * 2] + w2 * VB[k * 2];
         const bY = w0 * VB[i * 2 + 1] + w1 * VB[j * 2 + 1] + w2 * VB[k * 2 + 1];
         const sA = sampleLayer(layerA, aX, aY);
         const sB = sampleLayer(layerB, bX, bY);
-        const p = (y * W + x);
         srcA[p * 2] = aX; srcA[p * 2 + 1] = aY;
         srcB[p * 2] = bX; srcB[p * 2 + 1] = bY;
         triOf[p] = ti;
@@ -183,7 +217,7 @@ export function rasteriseObject(engine, objId, solved, t) {
       }
     }
   }
-  return { prem, alpha: null, srcA, srcB, triOf, covered };
+  return { prem, alpha: null, srcA, srcB, triOf, covered, gap };
 }
 
 // Control pairs as [A,B] arrays, used to fit the enclosing similarity.
@@ -271,7 +305,12 @@ export function renderFrame(engine, t, opts = {}) {
     for (let p = 0; p < W * H; p++) {
       const fa = F[p * 4 + 3];
       if (fa <= 1e-4 || Bk[p * 4 + 3] <= 1e-4) continue;
-      // visible-surface split: the back layer keeps only what the front leaves
+      // Visible-surface split under the Porter-Duff over operator. Where the
+      // front layer covers it, the back layer contributes only its (1-fa)
+      // fraction. Both its premultiplied colour AND its alpha scale by that
+      // fraction so the later over composite restores the exact result
+      // fa + ba(1-fa). Scaling colour alone would leave an opaque, darkened
+      // back layer (black band where soft front edges overlap it).
       const keep = 1 - fa;
       Bk[p * 4] *= keep; Bk[p * 4 + 1] *= keep;
       Bk[p * 4 + 2] *= keep; Bk[p * 4 + 3] *= keep;
@@ -397,14 +436,31 @@ export function renderFrame(engine, t, opts = {}) {
   let outOfFramePixels = 0;
   for (let p = 0; p < W * H; p++) if (prov.outOfFrame[p]) outOfFramePixels++;
 
+  // Protection gaps: union of per-object gap masks. A pixel here means a
+  // protected surface lost its legal correspondence (fold/reverse), so the
+  // frame deliberately shows a gap rather than invented cloth.
+  const gapMask = new Uint8Array(W * H);
+  const gapByObject = {};
+  for (const [id, L] of Object.entries(layers)) {
+    if (!L.gap) continue;
+    let count = 0;
+    for (let p = 0; p < W * H; p++) if (L.gap[p]) { gapMask[p] = 1; count++; }
+    if (count) gapByObject[id] = count;
+  }
+  let gapPixels = 0;
+  for (let p = 0; p < W * H; p++) gapPixels += gapMask[p];
+
   return {
     image: { width: W, height: H, data: out },
     t: tClamped,
     solved, layers, provenance: prov,
+    gapMask,
     diagnostics: {
       folds: foldReports,
       splitPixels,
       outOfFramePixels,
+      gapPixels,
+      gapByObject,
       residualPixels,
       residualSum,
       residualByConstraint: [...residualByConstraint.values()].sort((a, b) => b.pixels - a.pixels),

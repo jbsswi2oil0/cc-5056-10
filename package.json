@@ -7,10 +7,11 @@
     "build-assets": "node src/assets/build.js",
     "render": "node src/cli/render.js",
     "eval": "node src/cli/evaluate.js",
-    "test": "node test/run.js",
+    "test": "node test/run.js && node test/garment-check.js",
+    "garment": "node src/cli/garment.js",
     "serve": "node web/server.js",
     "ui-test": "node test/ui-check.mjs",
-    "test-all": "node test/run.js && node src/cli/evaluate.js hands && node src/cli/evaluate.js stitch"
+    "test-all": "node test/run.js && node test/garment-check.js && node src/cli/evaluate.js hands && node src/cli/evaluate.js stitch"
   },
   "dependencies": {
     "playwright": "^1.49.1"
